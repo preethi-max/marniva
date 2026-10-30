@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MARINVA | Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand-header">
+                <span class="brand-logo">M</span>
+                <div>
+                    <strong>MARINVA</strong>
+                    <small>Fleet intelligence</small>
+                </div>
+            </div>
+            <nav class="nav flex-column">
+                <a class="nav-link active" href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a class="nav-link" href="{{ url_for('fleet_page') }}">Green Fleet</a>
+                <a class="nav-link" href="{{ url_for('fuel_page') }}">AI Fuel</a>
+                <a class="nav-link" href="{{ url_for('emergency_page') }}">Emergency</a>
+                <a class="nav-link" href="{{ url_for('training_page') }}">Training</a>
+                <a class="nav-link" href="{{ url_for('reports_page') }}">Reports</a>
+                <a class="nav-link" href="{{ url_for('profile_page') }}">Settings</a>
+            </nav>
+        </aside>
+
+        <main class="main-panel">
+            <header class="top-bar">
+                <div>
+                    <h4>Operations dashboard</h4>
+                </div>
+                <div class="top-actions">
+                    <span class="badge badge-live">Live demo data</span>
+                    <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary btn-sm">Logout</a>
+                </div>
+            </header>
+
+            <div class="content-wrap">
+                <div class="row g-4 mb-4">
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <span>Total ships</span>
+                            <h3 id="totalShips">{{ dashboard.total_ships }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card accent-blue">
+                            <span>Active ships</span>
+                            <h3 id="activeShips">{{ dashboard.active_ships }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card accent-green">
+                            <span>Fleet fuel</span>
+                            <h3 id="fleetFuel">{{ dashboard.fleet_fuel }} t</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card accent-gold">
+                            <span>CO2 emissions</span>
+                            <h3 id="emissions">{{ dashboard.estimated_emissions }} t</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4 mb-4">
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <span>Carbon budget</span>
+                            <h3 id="carbonBudget">{{ dashboard.carbon_budget }}%</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <span>Fuel alerts</span>
+                            <h3 id="fuelAlerts">{{ dashboard.fuel_alerts }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <span>Emergency alerts</span>
+                            <h3 id="emergencyAlerts">{{ dashboard.emergency_alerts }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <span>Training completion</span>
+                            <h3 id="trainingCompletion">{{ dashboard.training_completion }}%</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4 mb-4">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header-row">
+                                <h5>Fuel consumption trend</h5>
+                                <span>Demo data</span>
+                            </div>
+                            <canvas id="consumptionChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header-row">
+                                <h5>Fleet status</h5>
+                                <span>Overview</span>
+                            </div>
+                            <ul class="status-list">
+                                {% for ship in ships %}
+                                <li><span class="dot {{ 'green' if ship.status != 'Docked' else 'amber' }}"></span> {{ ship.name }} <strong>{{ ship.status }}</strong></li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4 mb-4">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header-row">
+                                <h5>Emission trend</h5>
+                                <span>Monthly estimate</span>
+                            </div>
+                            <canvas id="emissionsChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header-row">
+                                <h5>Recent alerts</h5>
+                                <span>Priority</span>
+                            </div>
+                            <div class="alert-stack">
+                                {% for alert in dashboard.alerts %}
+                                <div class="mini-alert">
+                                    <strong>{{ alert.ship_name }}</strong>
+                                    <span>{{ alert.emergency_type }}</span>
+                                    <small>{{ alert.severity }}</small>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header-row">
+                                <h5>Quick access</h5>
+                                <span>All modules</span>
+                            </div>
+                            <div class="module-grid">
+                                <a href="{{ url_for('fleet_page') }}" class="module-btn">Green Fleet</a>
+                                <a href="{{ url_for('fuel_page') }}" class="module-btn">AI Fuel Intelligence</a>
+                                <a href="{{ url_for('emergency_page') }}" class="module-btn">Emergency Coordination</a>
+                                <a href="{{ url_for('training_page') }}" class="module-btn">Crew Safety Training</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

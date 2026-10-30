@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MARINVA | Green Fleet</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand-header">
+                <span class="brand-logo">M</span>
+                <div>
+                    <strong>MARINVA</strong>
+                    <small>Fleet</small>
+                </div>
+            </div>
+            <nav class="nav flex-column">
+                <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a class="nav-link active" href="{{ url_for('fleet_page') }}">Green Fleet</a>
+                <a class="nav-link" href="{{ url_for('fuel_page') }}">AI Fuel</a>
+                <a class="nav-link" href="{{ url_for('emergency_page') }}">Emergency</a>
+                <a class="nav-link" href="{{ url_for('training_page') }}">Training</a>
+                <a class="nav-link" href="{{ url_for('reports_page') }}">Reports</a>
+                <a class="nav-link" href="{{ url_for('profile_page') }}">Settings</a>
+            </nav>
+        </aside>
+
+        <main class="main-panel">
+            <header class="top-bar">
+                <div><h4>Green Fleet Management</h4></div>
+                <div class="top-actions"><span class="badge badge-live">Simulated data</span></div>
+            </header>
+
+            <div class="content-wrap">
+                <div class="row g-4 mb-4">
+                    {% for ship in ships %}
+                    <div class="col-md-3">
+                        <div class="card ship-card">
+                            <span class="ship-badge">{{ ship.vessel_id }}</span>
+                            <h5>{{ ship.name }}</h5>
+                            <p>{{ ship.vessel_type }}</p>
+                            <div class="two-col"><span>Status</span><strong>{{ ship.status }}</strong></div>
+                            <div class="two-col"><span>Fuel</span><strong>{{ ship.current_fuel_tons }} t</strong></div>
+                            <div class="two-col"><span>CO2</span><strong>~{{ ship.current_fuel_tons * 3.1 | int }} t</strong></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="row g-4 mb-4">
+                    <div class="col-lg-7">
+                        <div class="card">
+                            <div class="card-header-row"><h5>Route and speed optimisation</h5><span>Estimate only</span></div>
+                            <form id="fleetForm" class="row g-3">
+                                <div class="col-md-4">
+                                    <label>Ship</label>
+                                    <select name="ship_id" class="form-select">
+                                        {% for ship in ships %}
+                                        <option value="{{ ship.id }}">{{ ship.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label>Start port</label>
+                                    <input name="start_port" class="form-control" value="Port Klang">
+                                </div>
+                                <div class="col-md-4">
+                                    <label>Destination port</label>
+                                    <input name="destination_port" class="form-control" value="Rotterdam">
+                                </div>
+                                <div class="col-md-3">
+                                    <label>Speed (kn)</label>
+                                    <input type="number" name="speed" class="form-control" value="17.5" step="0.1">
+                                </div>
+                                <div class="col-md-3">
+                                    <label>Distance (nm)</label>
+                                    <input type="number" name="distance" class="form-control" value="6500" step="50">
+                                </div>
+                                <div class="col-md-3">
+                                    <label>Fuel type</label>
+                                    <select name="fuel_type" class="form-select">
+                                        <option>VLSFO</option>
+                                        <option>HFO</option>
+                                        <option>LSFO</option>
+                                        <option>Marine Gas Oil</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label>Weather</label>
+                                    <select name="weather" class="form-select">
+                                        <option>Calm</option>
+                                        <option>Moderate</option>
+                                        <option>Rough</option>
+                                        <option>Storm</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <button type="submit" class="btn btn-primary">Compare alternatives</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="col-lg-5">
+                        <div class="card">
+                            <div class="card-header-row"><h5>Cleaner-energy and port data</h5></div>
+                            <ul class="info-list">
+                                {% for port in ports %}
+                                <li><strong>{{ port.name }}</strong> | Shore power: {{ 'Yes' if port.shore_power_available else 'No' }} | Fuels: {{ port.available_fuels }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header-row"><h5>Alternative comparison</h5><span>Fuel / emissions / cost</span></div>
+                            <div id="fleetAlternatives" class="table-wrap"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/fleet.js') }}"></script>
+</body>
+</html>
