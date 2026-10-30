@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const fuelLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    const fuelLabels = ['Jan (demo)', 'Feb (demo)', 'Mar (demo)', 'Apr (demo)', 'May (demo)', 'Jun (demo)'];
     const fuelData = [320, 300, 280, 310, 295, 350];
     const emissionsData = [540, 560, 530, 580, 610, 660];
 

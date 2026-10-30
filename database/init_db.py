@@ -1,5 +1,7 @@
 import sqlite3
+import json
 from pathlib import Path
+from werkzeug.security import generate_password_hash
 
 DB_PATH = Path(__file__).resolve().parent / "database.db"
 
@@ -177,8 +179,167 @@ def init_db():
     )
 
     seed_data(cursor)
+    ensure_training_schema(conn)
     conn.commit()
     conn.close()
+
+
+def ensure_training_schema(conn):
+    cursor = conn.cursor()
+    cursor.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS training_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            crew_id TEXT NOT NULL,
+            module_code TEXT NOT NULL,
+            started_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            submitted_at TEXT,
+            elapsed_seconds INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'In progress'
+        );
+        CREATE TABLE IF NOT EXISTS training_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL,
+            action_key TEXT NOT NULL,
+            selected_value TEXT,
+            correct INTEGER NOT NULL DEFAULT 0,
+            elapsed_seconds INTEGER DEFAULT 0,
+            feedback TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS assessment_answers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL,
+            question_key TEXT NOT NULL,
+            selected_answer TEXT NOT NULL,
+            correct_answer TEXT NOT NULL,
+            is_correct INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS assessment_scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL UNIQUE,
+            crew_id TEXT NOT NULL,
+            module_code TEXT NOT NULL,
+            score REAL NOT NULL,
+            procedure_score REAL NOT NULL DEFAULT 0,
+            speed_score REAL NOT NULL DEFAULT 0,
+            mistake_count INTEGER NOT NULL DEFAULT 0,
+            passed INTEGER NOT NULL DEFAULT 0,
+            weak_area TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS training_certificates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            verification_id TEXT UNIQUE NOT NULL,
+            user_id INTEGER NOT NULL,
+            crew_id TEXT NOT NULL,
+            module_code TEXT NOT NULL,
+            score REAL NOT NULL,
+            completion_date TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS assessment_questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            category TEXT NOT NULL,
+            role_key TEXT NOT NULL DEFAULT 'common',
+            stage TEXT NOT NULL,
+            prompt TEXT NOT NULL,
+            options TEXT NOT NULL,
+            correct_option TEXT NOT NULL,
+            marks INTEGER NOT NULL DEFAULT 20,
+            feedback TEXT NOT NULL,
+            weak_area TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS assessment_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            crew_id TEXT NOT NULL,
+            category TEXT NOT NULL,
+            role_key TEXT NOT NULL,
+            score REAL NOT NULL,
+            passed INTEGER NOT NULL DEFAULT 0,
+            elapsed_seconds INTEGER NOT NULL DEFAULT 0,
+            submitted_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS assessment_attempt_answers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            attempt_id INTEGER NOT NULL,
+            question_code TEXT NOT NULL,
+            selected_option TEXT NOT NULL,
+            correct_option TEXT NOT NULL,
+            is_correct INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (attempt_id) REFERENCES assessment_attempts(id)
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_employee_id ON users(employee_id) WHERE employee_id IS NOT NULL AND employee_id <> '';
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_crew_user ON crew_profiles(user_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_crew_profile_id ON crew_profiles(crew_id);
+        """
+    )
+
+    for statement in (
+        "ALTER TABLE users ADD COLUMN password_hash TEXT",
+        "ALTER TABLE users ADD COLUMN crew_id TEXT",
+        "ALTER TABLE users ADD COLUMN employee_id TEXT",
+        "ALTER TABLE crew_profiles ADD COLUMN user_id INTEGER",
+        "ALTER TABLE crew_profiles ADD COLUMN responsibilities TEXT NOT NULL DEFAULT ''",
+    ):
+        try:
+            cursor.execute(statement)
+        except sqlite3.OperationalError:
+            pass
+
+    role_questions = {
+        "captain": [
+            ("cap-flood", "Navigation flooding decision", ["Raise the alarm, secure watertight integrity and inform command" , "Increase speed and continue"], "Raise the alarm, secure watertight integrity and inform command", "Command flooding control"),
+            ("cap-evac", "Crew evacuation coordination", ["Account crew, follow alternate routes and command muster control", "Board lifeboats without headcount"], "Account crew, follow alternate routes and command muster control", "Evacuation coordination")
+        ],
+        "engineer": [
+            ("eng-fire", "Machinery fire isolation", ["Stop fuel and ventilation, raise alarm and use approved suppression", "Open doors to cool the machinery"], "Stop fuel and ventilation, raise alarm and use approved suppression", "Machinery fire isolation"),
+            ("eng-fuel", "Fuel leakage containment", ["Stop transfer, isolate the source and maintain ignition control", "Continue operations and monitor"] , "Stop transfer, isolate the source and maintain ignition control", "Fuel leakage control")
+        ],
+        "crew": [
+            ("crew-cargo", "Cargo handling hazard", ["Stop the operation and report the unstable load", "Continue if crane capacity has margin"], "Stop the operation and report the unstable load", "Cargo safety"),
+            ("crew-mob", "Man-overboard action", ["Sound alarm, mark position and deploy approved assistance", "Search alone without informing bridge"], "Sound alarm, mark position and deploy approved assistance", "Man overboard response")
+        ],
+        "deck officer": [
+            ("deck-watch", "Deck watch hazard", ["Secure the area and report the unsafe condition", "Allow work while monitoring visually"], "Secure the area and report the unsafe condition", "Deck hazard control"),
+            ("deck-ppe", "Deck PPE selection", ["Use task-assessed helmet, gloves, footwear and lifejacket when required", "Use only sunglasses and gloves"], "Use task-assessed helmet, gloves, footwear and lifejacket when required", "Deck PPE")
+        ],
+        "electrical engineer": [
+            ("elec-short", "Electrical short circuit", ["Isolate power and use approved electrical procedures", "Reset repeatedly until the breaker holds"], "Isolate power and use approved electrical procedures", "Electrical isolation"),
+            ("elec-fire", "Electrical fire response", ["Disconnect power and use approved clean-agent or CO2 suppression", "Apply water to energized equipment"], "Disconnect power and use approved clean-agent or CO2 suppression", "Electrical fire response")
+        ],
+        "safety officer": [
+            ("safe-risk", "Risk assessment action", ["Stop the activity, assess controls and escalate", "Continue because controls are normally sufficient"], "Stop the activity, assess controls and escalate", "Hazard assessment"),
+            ("safe-ppe", "PPE compliance check", ["Correct the breach and verify task-specific protection", "Record it but allow work to continue"], "Correct the breach and verify task-specific protection", "PPE compliance")
+        ]
+    }
+    common_questions = [
+        ("common-flood", "Common flooding response", ["Raise alarm, preserve watertight integrity and report compartment", "Open adjacent doors"], "Raise alarm, preserve watertight integrity and report compartment", "Flooding response"),
+        ("common-muster", "Common evacuation and muster", ["Use a safe route, report to muster and account for crew", "Collect belongings before reporting"], "Use a safe route, report to muster and account for crew", "Muster accountability"),
+        ("common-life", "Life jacket and lifeboat safety", ["Follow command, inspect the lifejacket and enter only when ordered", "Board before the headcount"], "Follow command, inspect the lifejacket and enter only when ordered", "Life-saving appliance use"),
+        ("common-comm", "Emergency communication", ["Use agreed alarm and radio channels with clear location and need", "Use informal messages only"], "Use agreed alarm and radio channels with clear location and need", "Emergency communication"),
+        ("common-fire-gas", "Fire and gas alarm response", ["Raise alarm, isolate energy or source and move to a safe zone", "Investigate without protection"], "Raise alarm, isolate energy or source and move to a safe zone", "Fire and gas response")
+    ]
+    def insert_assessment(code, category, role_key, prompt, options, correct, marks=25, weak="Decision-making"):
+        cursor.execute("""INSERT INTO assessment_questions
+            (code, category, role_key, stage, prompt, options, correct_option, marks, feedback, weak_area)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(code) DO UPDATE SET category=excluded.category, role_key=excluded.role_key, prompt=excluded.prompt, options=excluded.options, correct_option=excluded.correct_option, feedback=excluded.feedback, weak_area=excluded.weak_area""",
+            (code, category, role_key, prompt, prompt, json.dumps(options), correct, marks, "Follow the vessel-approved emergency plan and report clearly.", weak))
+    for role_key, questions in role_questions.items():
+        for index, (code, stage, options, correct, weak) in enumerate(questions):
+            insert_assessment(code, "individual", role_key, stage + " — choose the safest action.", options, correct, 50, weak)
+    for code, stage, options, correct, weak in common_questions:
+        insert_assessment(code, "common", "common", stage + " — choose the safest action.", options, correct, 20, weak)
+
+    for user in cursor.execute("SELECT id, password FROM users WHERE password_hash IS NULL"):
+        cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (generate_password_hash(user["password"]), user["id"]))
 
 
 def seed_data(cursor):
@@ -190,6 +351,10 @@ def seed_data(cursor):
         "INSERT OR IGNORE INTO users (username, password, full_name, role) VALUES (?, ?, ?, ?)",
         user_rows,
     )
+    captain_user = cursor.execute("SELECT id FROM users WHERE username = 'captain'").fetchone()
+    if captain_user:
+        cursor.execute("UPDATE users SET crew_id = COALESCE(crew_id, 'CAPTAIN-SEED') WHERE id = ?", (captain_user[0],))
+        cursor.execute("INSERT OR IGNORE INTO crew_profiles (crew_id, full_name, language, ship_id, role, user_id, responsibilities) VALUES ('CAPTAIN-SEED', 'Nadia Iqbal', 'English', 1, 'Captain', ?, 'Navigation command, flooding decisions, evacuation coordination')", (captain_user[0],))
 
     ship_rows = [
         ("MV Atlas", "MAR-101", "Container", "At Sea", "VLSFO", 2600, 1780, 17.5, 24.6, 69.7, "Rotterdam", "Moderate", 1),
@@ -290,6 +455,12 @@ def seed_data(cursor):
         ("ppe", "PPE identification", "PPE", "Identify personal protective equipment required for hazardous tasks.", "English", "Which item is required before entering a chemical spill area?", "['Chemical-resistant gloves and goggles','A cap only','Regular footwear only','No PPE required']", "Chemical-resistant gloves and goggles", "PPE compliance", "PPE compliance", "All"),
         ("muster", "Muster station", "Muster", "Identify proper escape route and safety muster points.", "English", "What is the key purpose of a muster station?", "['To account for crew and coordinate evacuation','To store spare fuel','To load cargo','To start the generator']", "To account for crew and coordinate evacuation", "Escape route", "Escape route", "All"),
         ("fire-engine-hi", "Engine-room fire", "Fire", "Respuesta rápida a alarma de incendio en sala de máquinas.", "Hindi", "¿Cuál es la mejor acción ante una alarma de incendio en la sala de máquinas?", "['Aislar combustible y energía antes de combatir incendios','Mantener velocidad normal del motor','Abrir ventilación para limpiar humo','Usar agua sobre un panel eléctrico activo']", "Aislar combustible y energía antes de combatir incendios", "Fire suppression", "Fire suppression", "VLSFO"),
+        ("engine-fire", "Engine-room Fire Safety", "Engine fire", "Identify fire risks, isolate energy and select the correct fire response.", "English", "What is the first safe action when an engine-room fire alarm sounds?", "['Raise the alarm and stop fuel and electrical supply','Open ventilation and doors','Attempt to restart engines','Use water on energized equipment']", "Raise the alarm and stop fuel and electrical supply", "CO2 system", "Fire isolation", "VLSFO"),
+        ("gas-toxic", "Gas Leakage & Toxic Exposure", "Gas hazard", "Recognize gas warnings and select safe isolation and PPE actions.", "English", "What should the crew do first when toxic gas is suspected?", "['Leave the area and raise alarm upwind','Enter without breathing protection','Increase ventilation toward the crew','Start cargo discharge']", "Leave the area and raise alarm upwind", "SCBA and gas detector", "Toxic exposure", "LNG"),
+        ("ship-flooding", "Ship Flooding & Water Ingress", "Flooding", "Find the water ingress point and coordinate a controlled response.", "English", "What is the safest immediate response to confirmed flooding?", "['Raise alarm, isolate the space and start dewatering planning','Open more doors to inspect','Continue transit at full speed','Pump without finding the source']", "Raise alarm, isolate the space and start dewatering planning", "Pumps and plugs", "Water ingress", "All"),
+        ("emergency-muster", "Emergency Evacuation & Muster", "Evacuation", "Follow escape-route and muster procedures safely.", "English", "Where should crew assemble during an evacuation?", "['At the designated muster station for headcount','Near the engine room exit','At the cargo hold','In the accommodation corridor']", "At the designated muster station for headcount", "Life jacket and immersion suit", "Muster procedure", "All"),
+        ("marine-ppe", "Personal Protective Equipment", "PPE", "Choose task-specific PPE and inspect it before use.", "English", "Which equipment is suitable for entering a toxic gas atmosphere?", "['Approved SCBA, gloves and eye protection','Ordinary safety helmet only','No protection below deck','Cotton gloves only']", "Approved SCBA, gloves and eye protection", "SCBA and PPE kit", "PPE compliance", "All"),
+        ("alternative-fuels", "Alternative Marine Fuel Handling", "Fuel safety", "Apply isolation, leak detection and PPE controls to alternative fuels.", "English", "Before an alternative-fuel transfer, what should crew prioritize?", "['Confirm compatibility, bonding, leak detection and emergency isolation','Open transfer valves immediately','Bypass alarm systems','Vent vapors toward accommodation']", "Confirm compatibility, bonding, leak detection and emergency isolation", "Gas detector and spill kit", "Fuel handling", "LNG/methanol/ammonia"),
     ]
     cursor.executemany(
         "INSERT OR IGNORE INTO training_modules (code, title, scenario, description, language, question, options, correct_answer, recommended_equipment, risk_area, fuel_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",

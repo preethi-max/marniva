@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
+<body class="dashboard-page">
     <div class="app-shell">
         <aside class="sidebar">
             <div class="brand-header">
@@ -41,6 +41,23 @@
             </header>
 
             <div class="content-wrap">
+                <section class="dashboard-hero">
+                    <div>
+                        <span class="section-kicker">MARITIME OPERATIONS</span>
+                        <h2>{% if session.role|lower in ['crew', 'engineer', 'deck officer', 'safety officer', 'electrical engineer'] %}Crew operations overview{% elif session.role|lower in ['captain', 'master'] %}Vessel command overview{% elif session.role|lower in ['fleet administrator', 'port authority'] %}Fleet operations overview{% else %}System operations overview{% endif %}</h2>
+                        <p>Integrated fleet, safety, sustainability and training intelligence.</p>
+                    </div>
+                    <div class="hero-status"><span class="pulse-dot"></span> Systems operational <small>Demonstration workspace</small></div>
+                </section>
+                {% if session.role|lower in ['crew', 'engineer', 'deck officer', 'safety officer', 'electrical engineer'] %}
+                <div class="role-context">Personal workspace · vessel and training records are limited to your assigned account.</div>
+                {% elif session.role|lower in ['captain', 'master'] %}
+                <div class="role-context">Command workspace · vessel operations and crew readiness information.</div>
+                {% elif session.role|lower in ['fleet administrator', 'port authority'] %}
+                <div class="role-context">Fleet authority workspace · cross-vessel operations and coordination.</div>
+                {% else %}
+                <div class="role-context">Administration workspace · platform configuration and enterprise oversight.</div>
+                {% endif %}
                 <div class="row g-4 mb-4">
                     <div class="col-md-3">
                         <div class="card stat-card">

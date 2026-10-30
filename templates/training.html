@@ -7,7 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
+<body class="training-page">
     <div class="app-shell">
         <aside class="sidebar">
             <div class="brand-header">
@@ -34,77 +34,53 @@
                 <div class="top-actions"><span class="badge badge-live">Demo certificate enabled</span></div>
             </header>
 
-            <div class="content-wrap">
-                <div class="row g-4 mb-4">
-                    <div class="col-lg-5">
-                        <div class="card">
-                            <div class="card-header-row"><h5>Crew login</h5></div>
-                            <form id="crewForm" class="row g-3">
-                                <div class="col-12">
-                                    <label>Crew profile</label>
-                                    <select id="crewSelect" class="form-select">
-                                        {% for crew in crews %}
-                                        <option value="{{ crew.crew_id }}">{{ crew.full_name }} | {{ crew.role }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                                <div class="col-12">
-                                    <label>Language</label>
-                                    <select id="langSelect" class="form-select">
-                                        <option>English</option>
-                                        <option>Hindi</option>
-                                    </select>
-                                </div>
-                                <div class="col-12">
-                                    <label>Training scenario</label>
-                                    <select id="moduleSelect" class="form-select">
-                                        {% for module in modules %}
-                                        <option value="{{ module.code }}">{{ module.title }} ({{ module.language }})</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </form>
-                        </div>
+            <div class="content-wrap training-workspace">
+                <section class="training-toolbar card">
+                    <div><small class="text-muted">ACTIVE TRAINING</small><h3 id="moduleTitle">Safety Training</h3><p id="moduleDescription"></p></div>
+                    <div class="toolbar-controls">
+                        <select id="moduleSelect" class="form-select" aria-label="Training module"></select>
+                        <select id="langSelect" class="form-select" aria-label="Voice language"><option value="en-US">English</option><option value="hi-IN">Hindi</option></select>
+                        <button id="muteBtn" class="btn btn-outline-primary" type="button">Mute</button>
+                        <button id="voiceBtn" class="btn btn-primary" type="button">▶ Listen</button>
+                        <button id="voicePauseBtn" class="btn btn-outline-primary" type="button">Pause</button>
+                        <button id="voiceResumeBtn" class="btn btn-outline-primary" type="button">Resume</button>
+                        <button id="voiceStopBtn" class="btn btn-outline-primary" type="button">Stop</button>
+                        <button id="micBtn" class="btn btn-outline-secondary" type="button">🎙 Start listening</button>
+                        <button id="micStopBtn" class="btn btn-outline-secondary" type="button">Stop listening</button>
                     </div>
-                    <div class="col-lg-7">
-                        <div class="card scene-card">
-                            <div class="card-header-row"><h5>Training environment</h5></div>
-                            <div class="training-scene">
-                                <div class="hazard hazard-fire">Fire</div>
-                                <div class="hazard hazard-gas">Gas</div>
-                                <div class="hazard hazard-route">Route</div>
-                                <div class="equipment">PPE kit</div>
-                                <div class="equipment">Extinguisher</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
+                </section>
+                <div id="voiceStatus" class="assist-status" aria-live="polite"></div>
                 <div class="row g-4">
-                    <div class="col-lg-7">
-                        <div class="card">
-                            <div class="card-header-row"><h5>Assessment</h5></div>
-                            <div id="questionBox" class="question-box"></div>
-                            <div id="optionsBox" class="option-list"></div>
-                            <div class="mt-3 d-flex gap-2">
-                                <button id="submitAnswerBtn" class="btn btn-primary">Submit answer</button>
-                                <button id="voiceBtn" class="btn btn-outline-secondary">Voice assist</button>
+                    <div class="col-xl-8">
+                        <section class="card simulation-card">
+                            <div class="card-header-row"><div><span class="eyebrow">INTERACTIVE ENVIRONMENT</span><h5>3D simulation</h5></div><span id="environmentMode" class="status-chip">Simulation mode</span></div>
+                            <div id="trainingScene" class="training-3d" role="application" aria-label="Interactive maritime training environment">
+                                <div class="ship-model" aria-hidden="true"><div class="ship-deck"></div><div class="ship-stack"></div><div class="ship-engine"></div></div>
+                                <button class="scene-hazard" data-action="hazard" style="left:22%;top:42%">Hazard</button>
+                                <button class="scene-hazard safe-action" data-action="equipment" style="left:68%;top:38%">Equipment</button>
+                                <button class="scene-hazard safe-action" data-action="route" style="left:48%;top:68%">Muster route</button>
+                                <div id="sceneFeedback" class="scene-feedback">Select equipment or a hazard to inspect it.</div>
                             </div>
-                        </div>
+                            <div class="camera-row"><button id="cameraBtn" class="btn btn-outline-primary" type="button">Enable camera preview</button><button id="arBtn" class="btn btn-outline-secondary" type="button">Start surface AR</button><button id="arRotateBtn" class="btn btn-outline-secondary" type="button">Rotate object</button><button id="arScaleDownBtn" class="btn btn-outline-secondary" type="button">− Zoom</button><button id="arScaleBtn" class="btn btn-outline-secondary" type="button">+ Zoom</button><button id="arResetBtn" class="btn btn-outline-secondary" type="button">Reset scene</button><span id="cameraStatus">No camera active</span></div>
+                            <video id="cameraPreview" muted playsinline hidden></video>
+                        </section>
                     </div>
-                    <div class="col-lg-5">
-                        <div class="card">
-                            <div class="card-header-row"><h5>Progress & recommendations</h5></div>
-                            <div id="trainingResult"></div>
-                            <div id="certificateBox" class="mt-3"></div>
-                        </div>
-                    </div>
+                    <aside class="col-xl-4">
+                        <section class="card objective-card"><div class="card-header-row"><h5>Briefing</h5></div><div id="objectiveList"></div></section>
+                        <section class="card"><div class="card-header-row"><h5>Actions</h5></div><div id="actionList" class="action-list"></div></section>
+                        <section class="card assessment-card"><div class="card-header-row"><h5>Safety assessment</h5><span id="assessmentProgress">0 / 0</span></div><div id="assessmentInstructions" class="assessment-instructions"></div><div class="assessment-progress-track"><span id="assessmentProgressBar"></span></div><div id="questionBox"></div><div id="optionsBox" class="option-list"></div><div class="assessment-navigation"><button id="previousQuestionBtn" class="btn btn-outline-secondary" type="button">Previous</button><button id="nextQuestionBtn" class="btn btn-primary" type="button">Next decision</button></div><button id="reviewAnswersBtn" class="btn btn-link" type="button">Review answers</button><textarea id="voiceAnswer" class="form-control mt-3" placeholder="Type an answer when voice recognition is unavailable"></textarea><button id="submitAnswerBtn" class="btn btn-primary mt-3 w-100" type="button" disabled>Submit assessment once</button></section>
+                    </aside>
                 </div>
+                <div class="row g-4 mt-1"><div class="col-lg-8"><section class="card"><div class="card-header-row"><h5>Training progress</h5></div><div id="progressSummary"></div></section></div><div class="col-lg-4"><section class="card"><div class="card-header-row"><h5>Recommendations</h5></div><div id="recommendations"></div></section></div></div>
+                <section class="card personalized-assessment-card"><div class="card-header-row"><div><span class="eyebrow">PERSONALIZED EVALUATION</span><h5>Role assessment and common emergencies</h5></div><span id="personalizedRole"></span></div><div id="personalizedAssessment" class="personalized-assessment-grid"><p>Loading your role and common assessments…</p></div></section>
+                <section class="card result-card" id="trainingResult" hidden></section>
             </div>
         </main>
     </div>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/three.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ar-training.js') }}"></script>
     <script src="{{ url_for('static', filename='js/training.js') }}"></script>
 </body>
 </html>
